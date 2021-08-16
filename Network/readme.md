@@ -2,6 +2,43 @@
 
 按照五层网络模型,即物理层、数据链路层、网络层、传输层、和应用层进行描述.
 
+## 特别关注
+1.WIFI 6 
+想要研究WI-FI 6 的原因是M1 Mac 支持WIFI 6.好奇WIFI 6 到底支持多大的速率,网上宣传最大速率可以达到9.6Gbps,如果真如宣称的那样,那么就可以不用外接万兆网卡了.了解后发现M1 Mac 最高支持2x2 MIMO,在WiFi 6 模式、最高通道带宽为80MHz 下,最高速率为1.2Gbps.
+
+相比20、19、18 款4个 Thunderbolt 3 接口的13 MacBook Pro 以及 16 MacBook Pro 虽然只支持到WiFi 5(802.11ac),但支持3x3 的MIMO.在WiFi5模式下、最高通道为80MHz 下,最高速率为1.3Gbps.
+
+M1 Mac WiFi 6模式下的最高速率反而比WiFi 5 老版 Macbook Pro 要低....
+而且还不如NUC8i7BEH 的Intel AC9560 网卡,Intel AC9560 最大支持160MHz 频宽也是2x2 MIMO,最高速率为1.73Gbps,不过....在5GHz频段上，160MHz的信道非常少，中国只有1个。而在中国，这1个信道可能还有一部分是跨越到动态频率选择（DFS）的信道.
+
+M1 Mac 上的WIFI 6 无线网卡型号为苹果 USI 339S00758
+
+https://support.apple.com/zh-cn/guide/deployment-reference-macos/apdd3e47748d/web
+
+
+
+WIFI 6 的路由器
+
+![小米各机型参数对比4](README.assets/小米各机型参数对比4.png)
+
+在802.11ax模式下的2.4G速率表：（40MHz）
+
+![2.4G ax 40MHz速率](README.assets/2.4G-ax-40MHz速率.png)
+
+在802.11ax下的5G速率表：（80MHz）
+
+![5G ax 80MHz速率](README.assets/5G-ax-80MHz速率.png)
+
+
+
+在802.11ax下的5G速率表：（160MHz）
+
+![5G ax 160MHz速率](README.assets/5G-ax-160MHz速率.png)
+
+[参考]
+
+1.https://www.acwifi.net/12527.html
+
 ## 物理层
 
 - 通信系统模型
