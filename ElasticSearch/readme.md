@@ -876,6 +876,187 @@ GET /_data_stream/my-data-stream
 
 ### 04.Elasticsearch 异步检索 Async Search
 
+##### 1.异步搜索定义
+
+对搜索结果可以异步进行,监控搜索进度,并即时拿到部分可用的搜索结果
+
+##### 2.发布版本
+
+ElasticSearch 7.7 
+
+相关PR https://github.com/elastic/elasticsearch/pull/53828
+
+相关issue https://github.com/elastic/elasticsearch/issues/49091
+
+##### 3.使用场景
+
+异步搜索运行用户在异步搜索时在结果可用(即返回部分结果)时检索查询结果,避免需要等待较长的时间才能返回结果.当看到返回的部分查询结果不符合预期时也可以及时取消查询,节省服务器查询资源,提高效率.
+
+##### 4.实战
+
+1.样例数据测试一下
+
+```
+POST kibana_sample_data_flights/_async_search?size=0
+{
+  "sort":[{
+    "timestamp":{
+      "order":"asc"
+    }
+  }],
+  "aggs":{
+    "sale_date":{
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "1d"
+      }
+    }
+  }
+}
+```
+
+返回结果大致如下
+
+```
+{
+  "is_partial" : false,
+  "is_running" : false,
+  "start_time_in_millis" : 1629213597631,
+  "expiration_time_in_millis" : 1629645597631,
+  "response" : {
+    "took" : 5,
+    "timed_out" : false,
+    "_shards" : {
+      "total" : 1,
+      "successful" : 1,
+      "skipped" : 0,
+      "failed" : 0
+    },
+    "hits" : {
+      "total" : {
+        "value" : 10000,
+        "relation" : "gte"
+      },
+      "max_score" : null,
+      "hits" : [ ]
+    },
+```
+
+
+
+异步查询需要有大量数据才能体现出区别,可以使用如下工具进行
+
+https://github.com/oliver006/elasticsearch-test-data
+
+
+
+使用如下命令导入测试数据
+
+```
+python3 es_test_data.py --es_url=http://192.168.3.70:9200
+```
+
+程序运行前需要安装 `tornado`以及`nest_asyncio`
+
+![image-20210817233656078](readme.assets/image-20210817233656078.png)
+
+
+
+数据存在后可以进行检索了
+
+```
+POST test_data/_async_search?size=0
+{
+  "sort":[{
+    "last_updated":{
+      "order":"asc"
+    }
+  }],
+  "aggs":{
+    "sale_date":{
+      "date_histogram": {
+        "field": "last_updated",
+        "calendar_interval": "1d"
+      }
+    }
+  }
+}
+```
+
+返回结果如下
+
+```
+{
+  "is_partial" : false,
+  "is_running" : false,
+  "start_time_in_millis" : 1629214742105,
+  "expiration_time_in_millis" : 1629646742105,
+  "response" : {
+    "took" : 11,
+    "timed_out" : false,
+    "_shards" : {
+      "total" : 1,
+      "successful" : 1,
+      "skipped" : 0,
+      "failed" : 0
+    },
+    "hits" : {
+      "total" : {
+        "value" : 10000,
+        "relation" : "gte"
+      },
+      "max_score" : null,
+      "hits" : [ ]
+    }  
+        ]
+      }
+    }
+  }
+}
+
+```
+
+这里有个问题,如果查询速度太快,可能不会返回id,就像正常的索引查询一样.....简单说一下返回结果的几个字段含义
+
+- is_partial:当query 运行完毕后,该字段显示是在所有分片上执行成功还是失败的情况,在执行查询时结果为true
+- Is_running:查询是否仍然在进行,当查询正在进行时结果为true
+- total:总体而言,在几个分片上进行查询
+- successful: 有多少个分片已经完成查询
+-   "start_time_in_millis" : 查询开始时间
+    "expiration_time_in_millis" : 查询结束时间
+
+由返回结果可知,查询直接查询出来结果了,于是没有id这个参数
+
+
+
+如果返回结果有id这个参数,可以进行查询异步检索结果,
+
+```
+GET /_async_search/FjFoeU8xMHJKUW9pd1dzN1g2Rm9wOGcedFJCVnRVSVhSdVM0emN2YXZfTU9ZQToyNjYyNjk5
+```
+
+查询异步查询状态
+
+```
+GET /_async_search/status/FjUxQURkZFZyUVVlUUNydjVSZXhmWGcedFJCVnRVSVhSdVM0emN2YXZfTU9ZQToyNzE3MTcy/
+```
+
+删除或者终止查询状态
+
+```
+DELETE /_async_search/FjFoeU8xMHJKUW9pd1dzN1g2Rm9wOGcedFJCVnRVSVhSdVM0emN2YXZfTU9ZQToyNjYyNjk5
+```
+
+
+
+参考
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html
+
+https://mp.weixin.qq.com/s?__biz=Mzg2NTU5NjcxMA==&mid=2247483770&idx=1&sn=0298ae5c37cb5aa59ae350e84e5bf38a&source=41#wechat_redirect
+
+
+
 
 
 
