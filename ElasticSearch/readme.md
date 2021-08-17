@@ -491,11 +491,420 @@ Hot 阶段:手动创建第一个满足模版要求的索引
 
 ### 02.Elasticsearch 可搜索快照
 
+可搜索快照为企业版功能,暂时跳过
+
 ### 03. Elasticsearch Data Stream
+
+####  1.Data Stream 适合什么样的数据,什么样的场景
+
+Data Stream 主要适合时序性数据,数据极少更新或者没有更新
+
+#### 2.Data Stream 特点
+
+- 关联后备支撑索引(backing indices)
+
+data stream 实际是需要创建一系列的后备索引,data stream 是构建在后备索引之上的一层抽象
+
+- @timestamp 字段不可缺少
+
+每个写入到data stream 中的数据必须包含@timestamp 这个字段
+
+而且@timestamp 字段必须是date 类型(如果不指定,默认为date 类型)或者data_nanos 类型
+
+
+
+- data stream 后备索引规范
+
+  创建后备索引,索引需要符合以下的约定命名
+
+  ```
+  .ds-<data-stream>-<yyyy.MM.dd>-<generation>
+  ```
+
+  来看一个实际的例子: .ds-data-streamm-2021.07.25-000001
+
+  - .ds: 前缀开头
+  - data-stream: 自定义的数据流名称
+  - yyyy.MM.dd 日期格式
+  - generaion: rollover 累计值 默认从0开始
+
+- Append-only 仅追加
+
+  在data stream 中仅追加指仅支持 op_type=create 的索引请求,含义是仅支持向后追加数据
+
+  数据流只支持 update_by_query 以及 delete_by_query 实现批量操作.单条文档的更新和删除需要通过指定后备索引的方式实现
+
+  因此对于一些需要频繁更新或者删除的数据 data stream 并不适合.使用模版+别名+ILM 会是一个更合适的选择.
+
+
+
+#### 3.data stream 能做什么
+
+- 支持直接的写入、查询请求
+- 会自动将客户端请求路由到关联的索引,以存储流式数据
+- 可以使用索引生命周期管理ILM 自动管理这些关联索引
+
+#### 4.data stream 与索引有什么异同
+
+**相同点**:
+
+​	命令基本一致
+
+**不同点**:
+
+- 相比较于索引,data stream 多了一个抽象层,核心数据存储在以.ds 开头的后备索引中
+
+- 有一些data stream 特有的操作:
+
+  - data stream 必须包含@timestamp 字段
+
+  - 删除和更新操作只支持update_by_query 、delete_by_query 这两种操作
+
+  - 不能基于.ds 前缀的后备索引创建文档,但可以基于.ds 后备索引进行更新和删除操作.因此如果想要插入数据只能向创建后data stream进行插入.
+
+    如果执意要在.ds 后备索引中插入,会返回如下错误
+
+    ```
+    "reason" : "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [my-data-stream] instead"
+    ```
+
+  - 后备索引无法进行:clone.close,delete,freeze,shrink和split 操作
+
+#### 5.data stream 与模版的关系
+
+一个模版可以支持多个data stream 是一对多的关系
+
+模版和data stream 之间没有强约束, 不能通过删除data stream 的方式删除模版
+
+#### 6.data stream 与ilm 关系
+
+data stream 可以使用ilm 像管理索引一样管理data stream
+
+data stream 操作时序数据有一个明显的优势,不需要再为ilm 配置index.lifecycle.rollover_alias
+
+
+
+
+
+#### 7. 实际操作
+
+主要涉及data stream 的创建,删除,修改,查询
+
+
+
+##### 7.1 data stream 创建
+
+1.创建生命周期policy,policy包含了热,暖,冷,冷冻,删除等阶段
+
+```
+PUT ilm/policy/my-lifecycle-policy
+{
+  "policy":{
+    "phases":{
+      "hot":{
+        "actions":{
+          "rollover":{
+            "max_primary_shard_size":"50gb"
+          }
+        }
+      },
+      "warm":{
+        "min_age":"30d",
+        "actions":{
+          "shrink":{
+            "number_of_shards":1
+          },
+          "forcemerge":{
+            "max_num_segements":1
+          }
+        }
+      },
+      "cold":{
+        "min_age":"60d",
+        "actions":{
+          "searchable_snapshot":{
+            "snapshot_repository":"found-snapshot"
+          }
+        }
+      },
+      "frozen":{
+        "min_age":"90d",
+        "actions":{
+          "searchable_snapshot":{
+            "snapshot_repository":"found-snapshot"
+          }
+        }
+      },
+      "delete":{
+        "min_ahhe":"735d",
+        "actions":{
+          "delete":{}
+        }
+      }
+    }
+  }
+}
+```
+
+执行命令后返回结果
+
+```
+{
+  "_index" : "ilm",
+  "_type" : "policy",
+  "_id" : "my-lifecycle-policy",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+
+```
+
+2.创建模版
+
+```
+PUT _component_template/my-mapping
+{
+  "template":{
+    "mappings":{
+      "properties":{
+        "@timestamp":{
+          "type":"date",
+          "format":"date_optional_time||epoch_millis"
+        },
+        "message":{
+          "type":"wildcard"
+        }
+      }
+    }
+  }
+}
+```
+
+执行后返回结果
+
+```
+{
+  "acknowledged" : true
+}
+```
+
+
+
+```
+# Creates a component template for index settings
+PUT _component_template/my-settings
+{
+  "template":{
+    "settings":{
+      "index.lifecycle.name":"my-liftcycle-policy"
+    }
+  }
+}
+
+
+PUT _index_template/my-index-template
+{
+  "index_patterns":["my-data-stream*"],
+  "data_stream":{ },
+  "composed_of":["my-mapping","my-settings"],
+  "priority":500
+}
+```
+
+3.创建data stream
+
+两种方式
+
+- 直接创建数据流 my-data-stream
+
+PUT _data_stream/my-data-stream
+
+- 直接批量或者逐个导入数据(会间接生成 data stream 的创建)
+
+
+
+![data streams index request](readme.assets/data-streams-index-request.svg)
+
+```
+
+PUT my-data-stream/_bulk
+{"create":{ }}
+{ "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
+{ "create":{ } }
+{ "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
+
+
+POST my-data-stream/_doc
+{
+  "@timestamp": "2099-05-06T16:21:15.000Z",
+  "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
+}
+```
+
+注意点:
+
+- 批量bulk操作,必须使用create 指令,而非index(使用index 不会报错,但是会把stream 当做index 处理)
+- 文档必须包含@timestamp字段
+
+
+
+##### 7.2 data sream 删除
+
+删除数据流
+
+```
+DELETE _data_stream/my-data-stream
+```
+
+单条文档删除
+
+```
+DELETE .ds-my-data-stream-2021.08.17-000001/_doc/1
+```
+
+批量删除文档
+
+```
+POST /my-data-stream/_delete_by_query
+{
+  "query":{
+    "match":{
+      "_id":"rgRmU3sBWkK7SR22gA4A"
+    }
+  }
+}
+```
+
+
+
+
+
+##### 7.3 data stream 修改
+
+单条数据修改
+
+```
+# 插入数据
+POST my-data-stram/_bulk
+{"create":{"_id":1}}
+{"@timestamp":"2099-05-06T16:21:15.000Z","message":"192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"}
+
+# 获取data stream相关的索引
+GET /_data_stream/my-data-stream
+
+# 更新 (更新要注意if_seq_no 和if_primary_term 两个参数)
+PUT .ds-my-data-stream-2021.08.17-000001/_doc/1?if_seq_no=15&if_primary_term=1
+{
+  "@timestamp": "2099-03-08T11:06:07.000Z",
+  "message": "Login successful"
+}
+
+# 查看验证是否已经更新
+GET .ds-my-data-stream-2021.08.17-000001/_doc/1
+```
+
+批量更新 update_by_query 进行批量更新
+
+```
+POST /my-data-stream/_update_by_query
+{
+  "query": {
+    "match": {
+      "@timestamp": "2099-03-08T11:06:07.000Z"
+    }
+  },
+  "script": {
+    "source": "ctx._source.timestamp = params.new_timestamp",
+    "params": {
+      "new_timestamp": "2091-03-08T11:06:07.000Z"
+    }
+  }
+}
+```
+
+
+
+##### 7.4 查询
+
+```
+GET /_data_stream/my-data-stream
+```
+
+返回结果如下
+
+```
+{
+  "data_streams" : [
+    {
+      "name" : "my-data-stream",
+      "timestamp_field" : {
+        "name" : "@timestamp"
+      },
+      "indices" : [
+        {
+          "index_name" : ".ds-my-data-stream-2021.08.17-000001",
+          "index_uuid" : "oHNNNK6gQEmPBX4EvjG2xw"
+        }
+      ],
+      "generation" : 1,
+      "status" : "GREEN",
+      "template" : "my-index-template",
+      "ilm_policy" : "my-liftcycle-policy1",
+      "hidden" : false,
+      "system" : false
+    }
+  ]
+}
+```
+
+
+
+其他诸如reindex,rollover 操作与普通索引一致
+
+
+
+---
+
+
 
 ### 04.Elasticsearch 异步检索 Async Search
 
+
+
+
+
 ### 05. Kibana Data Visualizer 上传数据实战
+
+Machine Learning -> Data Visulalizer -> Data Visualizer -> Import data / Select an index pattern
+
+![img](readme.assets/1628667015703-8af7a6de-499c-4b45-9eb8-320f7903e74f.png)
+
+#### 上传数据
+
+![image-20210817111145709](readme.assets/image-20210817111145709.png)
+
+![image-20210817111258622](readme.assets/image-20210817111258622.png)
+
+#### 设置索引
+
+![image-20210817111359207](readme.assets/image-20210817111359207.png)
+
+#### 查看索引pattern
+
+![image-20210817111818374](readme.assets/image-20210817111818374.png)
+
+
+
+
+
+
 
 
 ## 01基础认知
