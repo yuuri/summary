@@ -179,3 +179,38 @@ WIFI 6 的路由器
     - HTTP操作过程
     - HTTP特点
     - HTTP报文结构
+
+
+
+
+其他:  
+什么是网络协议,为什么网络协议要分层,这样有什么好处?  
+计算机网络各层协议及作用?   
+URI 和 URL的区别?  
+DNS的工作流程?  
+ARP协议?  
+有IP地址之后,为什么还要用MAC地址?  
+ping的过程?  
+路由器和交换机的区别?  
+TCP和UDP的区别  
+TCP如何保证可靠传输  
+TCP的三次握手及四次挥手  
+为什么TCP连接的时候是3次?两次是否可以?  
+为什么TCP连接的时候是3次,关闭的时候却是4次?  
+TIME_WAIT和CLOSE_WAIT的区别在哪?  
+为什么客户端发出第四次挥手的确认报文后要等2MSL的时间?  
+如果已经建立连接,但是客户端突然出现故障怎么办?  
+HTTP与HTTPS区别?  
+什么是对称加密与非对称加密?  
+HTTPS加密过程?  
+常见HTTP状态码?  
+常见HTTP方法?  
+GET和POST区别?  
+HTTP1.0、HTTP1.1、HTTP2.0的主要区别是什么?  
+Session、Cookie和Token的主要区别?  
+如果客户端禁止Cookie能实现session还能用吗?  
+在浏览器中输入url地址到显示主页的过程?  
+servlet是现成安全的吗?  
+
+[参考]
+https://segmentfault.com/a/1190000038526729
