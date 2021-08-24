@@ -1142,3 +1142,12 @@ Machine Learning -> Data Visulalizer -> Data Visualizer -> Import data / Select 
 
 ### 2.项目
 
+
+
+
+
+#### ES Script 整理与总结
+
+1.相关资料
+Github PR:https://github.com/elastic/elasticsearch/pulls?q=is%3Apr+label%3A%3ACore%2FInfra%2FScripting
+Github issue:https://github.com/elastic/elasticsearch/issues?q=is%3Aopen+is%3Aissue+label%3A%3ACore%2FInfra%2FScripting
